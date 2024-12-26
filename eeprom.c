@@ -1,7 +1,8 @@
-#include "common/eeprom/eeprom.h"
+#include "eeprom.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "main.h"
 
 header_t g_headers[MAX_HEADER_COUNT] = {0};
 eeprom_write_status_t e_wr_stat = {.has_write_started=0, .is_write_complete=0};
@@ -10,7 +11,9 @@ uint8_t g_numStructs; //number of entries in header
 
 uint16_t g_eeprom_size;
 uint8_t g_device_addr;
-I2C_TypeDef *g_eeprom_i2c;
+I2C_HandleTypeDef *g_eeprom_i2c; // pointer to the eeprom I2C peripheral handler
+
+extern I2C_HandleTypeDef hi2c2;
 
 void downloadChunk(uint16_t from_addr, void *to_addr, uint16_t size);
 void uploadByte(uint16_t addr, uint8_t val);
@@ -28,13 +31,20 @@ void combineVersion(uint8_t *version, uint8_t *overwrite);
 void loadHeaderEntries();
 void delay(uint8_t ms);
 
-
+// from_addr = address in the eeprom from where data should be read
+// to_addr = pointer to MCU memory where data should be written from eeprom
 //reads chunk of data
 void downloadChunk(uint16_t from_addr, void *to_addr, uint16_t size)
 {
-  uint8_t ret = 0;
-
   // set cursor
+  HAL_StatusTypeDef ret = HAL_I2C_Mem_Read(&hi2c2, (uint16_t) 0x50<<1, from_addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)to_addr, size, 100);
+  if( ret != HAL_OK )
+  {
+    uint8_t zhuzhu = 1;
+  }
+  
+  
+  /*
   ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 2, PHAL_I2C_MODE_TX);
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_write(g_eeprom_i2c, from_addr >> 8);   // High
@@ -62,13 +72,19 @@ void downloadChunk(uint16_t from_addr, void *to_addr, uint16_t size)
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
   if (!ret) errorFound(COM_ERROR);
-
+*/
 }
 
 //writes single byte
 void uploadByte(uint16_t addr, uint8_t val)
 {
-  uint8_t ret = 0;
+  HAL_StatusTypeDef ret = HAL_I2C_Mem_Write(&hi2c2, (uint16_t) 0x50<<1, addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)&val, 1, 100);
+  if( ret != HAL_OK )
+  {
+    uint8_t zhuzhu = 1;
+  }
+  
+  /*
   ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 3, PHAL_I2C_MODE_TX);
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_write(g_eeprom_i2c, addr >> 8);   // High Addr
@@ -78,14 +94,20 @@ void uploadByte(uint16_t addr, uint8_t val)
   ret = PHAL_I2C_write(g_eeprom_i2c, val);         // Data
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-
+  */
 }
 
+// from_addr = pointer to MCU memory from where data should be read and sent to eeprom
+// to_addr = address in the eeprom where data should be written
 //uploads chunk ignoring page breaks
 void eUploadRaw(void *from_addr, uint16_t to_addr, uint16_t size)
 {
-  uint8_t ret = 0;
-
+  HAL_StatusTypeDef ret = HAL_I2C_Mem_Write(&hi2c2, (uint16_t) 0x50<<1, to_addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)from_addr, size, 100);
+  if( ret != HAL_OK )
+  {
+    uint8_t zhuzhu = 1;
+  }
+  /*
   ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 2 + size, PHAL_I2C_MODE_TX);
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_write(g_eeprom_i2c, to_addr >> 8);          // High Addr
@@ -96,6 +118,7 @@ void eUploadRaw(void *from_addr, uint16_t to_addr, uint16_t size)
   if (!ret) errorFound(COM_ERROR);
   ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
   if (!ret) errorFound(COM_ERROR);
+  */
 
 }
 
@@ -161,13 +184,13 @@ uint8_t uploadChunkPeriodic(void *from_addr, uint16_t to_addr, uint16_t size)
 
   if (e_wr_stat.current_addr < e_wr_stat.end_loc)
   {
-    return false;
+    return 0;
   }
   else
   {
     e_wr_stat.is_write_complete = 1;
     e_wr_stat.has_write_started = 0;
-    return true;
+    return 1;
   }
 }
 
@@ -185,11 +208,11 @@ uint8_t uploadChunkPeriodic(void *from_addr, uint16_t to_addr, uint16_t size)
 // }
 
 //Sets all addresses to 0
-void eepromWipe()
+void eepromWipe(uint16_t eeprom_size)
 {
   uint8_t data[PAGE_SIZE] = {0};
 
-  for (uint16_t i = 0; i < g_eeprom_size; i += PAGE_SIZE)
+  for (uint16_t i = 0; i < eeprom_size; i += PAGE_SIZE)
   {
     uploadChunkBlocking(data, i, 32);
   }
@@ -478,11 +501,10 @@ void eepromCleanHeaders()
 }
 
 //loads current header info
-void eepromInitialize(uint16_t eepromSpace, uint8_t address, I2C_TypeDef *i2c)
+void eepromInitialize(uint16_t eepromSpace, uint8_t address)
 {
   g_eeprom_size = eepromSpace;
   g_device_addr = address;
-  g_eeprom_i2c = i2c;
 
   downloadChunk(0x00, &g_numStructs, 1);
 
@@ -558,9 +580,5 @@ void combineVersion(uint8_t *version, uint8_t *overwrite)
 
 void delay(uint8_t ms)
 {
-  uint32_t ticks = (SystemCoreClock / 1000) * ms / 4;
-  for(int i = 0; i < ticks; i++)
-  {
-    __asm__("nop");
-  }
+  HAL_Delay(ms);
 }

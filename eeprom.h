@@ -3,23 +3,17 @@
  *
  *  Created on: Dec 6, 2020
  *      Author: Luke Oxley
+ *
+ *  Modified on: Dec 26, 2024
+ *      Author: Dmitry
  */
 
 #ifndef EEPROM_H_
 #define EEPROM_H_
 
-#include "common/phal_L4/i2c/i2c.h"
+#include <stdint.h>
 
-//#define DEVICE_ADDR 0x50 //Before Bit Shifting
-
-//writing
-#define WRITE_ENABLE 0x00
-#define WRITE_TIMEOUT 1000
-
-#define PAGE_SIZE 32
-
-//reading
-#define READ_ENABLE 0x01
+#define PAGE_SIZE 64
 
 #define NAME_SIZE 3
 
@@ -66,14 +60,11 @@ typedef enum{
   HEADER_NOT_FOUND
 } eeprom_error_t;
 
-//macros
-#define SET_ADDRESS(address, write_en) ((address << 1) | write_en)
-
 //void eepromDump(UART_HandleTypeDef huart);
 /**
  * @brief Set all addresses in eeprom to zero
  */
-void eepromWipe();
+void eepromWipe(uint16_t eeprom_size);
 
 /**
  * @brief           links a data structure in memory to one in eeprom
@@ -96,7 +87,7 @@ uint8_t eepromLinkStruct(void* ptr, uint16_t size, char name[], uint8_t version,
  * @param eepromSpace byte capacity of eeprom
  * @param address     I2C address
  */
-void eepromInitialize(uint16_t eepromSpace, uint8_t address, I2C_TypeDef *i2c);
+void eepromInitialize(uint16_t eepromSpace, uint8_t address);
 
 /**
  * @brief call after linking structs, removes old structs from memory with 
