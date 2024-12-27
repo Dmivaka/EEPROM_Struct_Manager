@@ -37,64 +37,23 @@ void delay(uint8_t ms);
 void downloadChunk(uint16_t from_addr, void *to_addr, uint16_t size)
 {
   // set cursor
+  while( HAL_I2C_IsDeviceReady(&hi2c2, (uint16_t) 0x50<<1, 100, 1) != HAL_OK );
   HAL_StatusTypeDef ret = HAL_I2C_Mem_Read(&hi2c2, (uint16_t) 0x50<<1, from_addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)to_addr, size, 100);
   if( ret != HAL_OK )
   {
     uint8_t zhuzhu = 1;
   }
-  
-  
-  /*
-  ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 2, PHAL_I2C_MODE_TX);
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, from_addr >> 8);   // High
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, from_addr & 0xFF); // Low
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-  if (!ret) errorFound(COM_ERROR);
-
-  while(size > 0xFF) // can only receive 255 at a time
-  {
-    ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, READ_ENABLE), 0xFF, PHAL_I2C_MODE_RX);
-    if (!ret) errorFound(COM_ERROR);
-    ret = PHAL_I2C_read_multi(g_eeprom_i2c, to_addr, 0xFF);
-    if (!ret) errorFound(COM_ERROR);
-    ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-    if (!ret) errorFound(COM_ERROR);
-    size -= 0xFF;
-    to_addr += 0xFF;
-  }
-
-  ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, READ_ENABLE), (uint8_t) size, PHAL_I2C_MODE_RX);
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_read_multi(g_eeprom_i2c, to_addr, (uint8_t) size);
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-  if (!ret) errorFound(COM_ERROR);
-*/
 }
 
 //writes single byte
 void uploadByte(uint16_t addr, uint8_t val)
 {
+  while( HAL_I2C_IsDeviceReady(&hi2c2, (uint16_t) 0x50<<1, 100, 1) != HAL_OK );
   HAL_StatusTypeDef ret = HAL_I2C_Mem_Write(&hi2c2, (uint16_t) 0x50<<1, addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)&val, 1, 100);
   if( ret != HAL_OK )
   {
     uint8_t zhuzhu = 1;
   }
-  
-  /*
-  ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 3, PHAL_I2C_MODE_TX);
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, addr >> 8);   // High Addr
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, addr & 0xFF); // Low Addr
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, val);         // Data
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-  */
 }
 
 // from_addr = pointer to MCU memory from where data should be read and sent to eeprom
@@ -102,24 +61,12 @@ void uploadByte(uint16_t addr, uint8_t val)
 //uploads chunk ignoring page breaks
 void eUploadRaw(void *from_addr, uint16_t to_addr, uint16_t size)
 {
+  while( HAL_I2C_IsDeviceReady(&hi2c2, (uint16_t) 0x50<<1, 100, 1) != HAL_OK );
   HAL_StatusTypeDef ret = HAL_I2C_Mem_Write(&hi2c2, (uint16_t) 0x50<<1, to_addr, I2C_MEMADD_SIZE_16BIT, (uint8_t*)from_addr, size, 100);
   if( ret != HAL_OK )
   {
     uint8_t zhuzhu = 1;
   }
-  /*
-  ret = PHAL_I2C_gen_start(g_eeprom_i2c, SET_ADDRESS(g_device_addr, WRITE_ENABLE), 2 + size, PHAL_I2C_MODE_TX);
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, to_addr >> 8);          // High Addr
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write(g_eeprom_i2c, to_addr & 0xFF);        // Low Addr
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_write_multi(g_eeprom_i2c, from_addr, size); // Data
-  if (!ret) errorFound(COM_ERROR);
-  ret = PHAL_I2C_gen_stop(g_eeprom_i2c);
-  if (!ret) errorFound(COM_ERROR);
-  */
-
 }
 
 //breaks data into chunks to prevent crossing page boundary
@@ -143,7 +90,6 @@ void uploadChunkBlocking(void *from_addr, uint16_t to_addr, uint16_t size)
       chunkSize = next_boundary - current_addr;
     }
 
-    delay(E_DELAY);
     eUploadRaw(from + (current_addr - to_addr), current_addr, chunkSize);
 
     current_addr += chunkSize;
@@ -241,7 +187,6 @@ void addHeaderEntry(header_t *new_header)
   new_header->address_on_eeprom = eepromMalloc(new_header->size);
 
   g_numStructs += 1;
-  delay(E_DELAY); // minimum 5 ms between writing
   uploadByte(0, g_numStructs); //increment struct num by 1
 
   if (g_numStructs > MAX_HEADER_COUNT)
@@ -474,7 +419,6 @@ void removeFromEeprom(char name[])
 
   // decrement num g_headers
   g_numStructs -= 1;
-  delay(E_DELAY); // minimum 5 ms delay between write cycles
   uploadByte(0, g_numStructs);
 }
 
@@ -576,9 +520,4 @@ void splitVersion(uint8_t *version, uint8_t *overwrite)
 void combineVersion(uint8_t *version, uint8_t *overwrite)
 {
   *version = *version | (*overwrite << OVERWRITE_BIT);
-}
-
-void delay(uint8_t ms)
-{
-  HAL_Delay(ms);
 }
